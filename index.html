@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phone Tracker Admin</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+</head>
+<body>
+<h1>Phone Tracker Admin</h1>
+<button id="generateLink">Generate Bind Link</button>
+<div id="generatedLinkBox"></div>
+<div id="map"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { getDatabase, ref, onChildAdded, onChildChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+
+// Your Firebase config
+const firebaseConfig = {
+  apiKey: "AIzaSyAz9MekmxZ3n32vzVkjXpQZdWCA-zzUH9o",
+  authDomain: "phone-tracker-82286.firebaseapp.com",
+  databaseURL: "https://phone-tracker-82286-default-rtdb.firebaseio.com",
+  projectId: "phone-tracker-82286",
+  storageBucket: "phone-tracker-82286.appspot.com",
+  messagingSenderId: "343819739526",
+  appId: "1:343819739526:web:10acad845264bd81c18c07"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+// Leaflet map
+const map = L.map('map').setView([0,0],2);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  maxZoom:19
+}).addTo(map);
+
+const markers = {};
+
+// Marker creation
+function createMarker(lat, lng, name){
+  const marker = L.circleMarker([lat,lng],{
+    radius:10,
+    color:"#ff4081",
+    fillColor:"#ff79a9",
+    fillOpacity:0.8
+  }).addTo(map).bindPopup(`<b>${name}</b>`);
+  return marker;
+}
+
+// Smooth movement
+function moveMarker(marker, lat, lng){
+  if(!marker._latlng) return;
+  const frames=20;
+  const startLat=marker._latlng.lat;
+  const startLng=marker._latlng.lng;
+  let i=0;
+  const deltaLat=(lat-startLat)/frames;
+  const deltaLng=(lng-startLng)/frames;
+  function animate(){
+    if(i<frames){
+      marker.setLatLng([startLat+deltaLat*i, startLng+deltaLng*i]);
+      i++;
+      requestAnimationFrame(animate);
+    } else {
+      marker.setLatLng([lat,lng]);
+    }
+  }
+  animate();
+}
+
+// Add/update marker
+function addOrUpdateMarker(id, device){
+  const {latitude, longitude, name} = device;
+  if(markers[id]){
+    moveMarker(markers[id], latitude, longitude);
+  } else {
+    markers[id] = createMarker(latitude, longitude, name);
+  }
+  const group = L.featureGroup(Object.values(markers));
+  map.fitBounds(group.getBounds().pad(0.5));
+}
+
+// Firebase listener
+const devicesRef = ref(db,"devices");
+onChildAdded(devicesRef, snap=>addOrUpdateMarker(snap.key, snap.val()));
+onChildChanged(devicesRef, snap=>addOrUpdateMarker(snap.key, snap.val()));
+
+// Generate bind link
+document.getElementById("generateLink").addEventListener("click", ()=>{
+  const bindLink = window.location.origin + "/bind.html";
+  document.getElementById("generatedLinkBox").innerHTML = `Bind Link: <a href="${bindLink}" target="_blank">${bindLink}</a>`;
+});
+</script>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</body>
+</html>
